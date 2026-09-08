@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RakshaMarg - Highway Safety Pass</title>
+  
+  <!-- DEBLINA'S MODULE: Leaflet Library for Geo-fencing -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --card-bg: #1e293b;
+      --accent-red: #ef4444;
+      --accent-red-glow: rgba(239, 68, 68, 0.4);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-color: #334155;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh; padding: 16px;
+    }
+
+    .app-card {
+      background: var(--card-bg); width: 100%; max-width: 400px;
+      border-radius: 20px; border: 1px solid var(--border-color);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4); padding: 24px; text-align: center;
+    }
+
+    .header-tag {
+      display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; background: rgba(59, 130, 246, 0.15); color: #60a5fa;
+      padding: 4px 10px; border-radius: 20px; margin-bottom: 12px;
+    }
+
+    h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+
+    .input-group { text-align: left; margin-bottom: 20px; }
+    .input-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; }
+    .input-group input {
+      width: 100%; background: #0f172a; border: 1px solid var(--border-color);
+      border-radius: 10px; padding: 12px 14px; color: var(--text-main); font-size: 15px; outline: none;
+    }
+
+    /* DEBLINA'S MODULE: Map & Warning UI */
+    #travelerMap {
+      height: 160px;
+      width: 100%;
+      border-radius: 12px;
+      background: #0f172a;
+      margin-bottom: 16px;
+      border: 1px solid var(--border-color);
+    }
+    
+    .danger-banner {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--accent-red);
+      color: #fca5a5;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 16px;
+      display: none; /* Hidden by default until geo-fence breached */
+    }
+
+    /* Pulsing SOS Button */
+    .btn-sos {
+      background: var(--accent-red); color: white; border: none; width: 100%;
+      padding: 20px; font-size: 18px; font-weight: 800; letter-spacing: 0.5px;
+      border-radius: 14px; cursor: pointer; box-shadow: 0 0 20px var(--accent-red-glow);
+      animation: pulse 2s infinite; transition: transform 0.1s ease;
+    }
+    .btn-sos:active { transform: scale(0.98); }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 13px;
+      margin-top: 20px; padding: 6px 12px; background: #0f172a; border-radius: 20px; color: var(--text-muted);
+    }
+    .status-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; }
+
+    pre {
+      margin-top: 18px; text-align: left; background: #0f172a; border: 1px solid var(--border-color);
+      padding: 12px; border-radius: 8px; font-size: 11px; color: #38bdf8; overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-card">
+    <span class="header-tag">Official Pass</span>
+    <h2>🛡️ RakshaMarg</h2>
+    <p class="subtitle">Northeast Corridor Landslide Monitoring</p>
+
+    <!-- DEBLINA'S UI: Live Map and Dynamic Warning -->
+    <div id="dangerAlert" class="danger-banner">
+      ⚠️ CAUTION: You have entered a high-risk landslide zone. Proceed carefully.
+    </div>
+    <div id="travelerMap"></div>
+
+    <div class="input-group">
+      <label for="travelerId">Vehicle / Traveler ID</label>
+      <input type="text" id="travelerId" placeholder="e.g., AS-01-BX-2026">
+    </div>
+
+    <button id="sosBtn" class="btn-sos">🚨 EMERGENCY SOS</button>
+
+    <div class="status-badge">
+      <div id="statusDot" class="status-dot"></div>
+      <span id="statusMsg">System Ready</span>
+    </div>
+
+   <div id="output" style="display:none; margin-top: 18px; padding: 16px; background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; border-radius: 12px; color: #4ade80;">
+      <strong>🚨 Alert Successfully Broadcasted!</strong><br>
+      <span style="font-size: 13px; color: var(--text-muted); margin-top: 8px; display: block;">The Command Center has received your exact location and hazard status. Help is on the way.</span>
+    </div>
+  </div>
+
+  <script>
+    const sosBtn = document.getElementById('sosBtn');
+    const travelerIdInput = document.getElementById('travelerId');
+    const statusMsg = document.getElementById('statusMsg');
+    const statusDot = document.getElementById('statusDot');
+    const output = document.getElementById('output');
+    const payloadDisplay = document.getElementById('payloadDisplay');
+    const dangerAlert = document.getElementById('dangerAlert');
+
+    const SERVER_URL = 'http://localhost:3000/api/sos';
+
+    // --- DEBLINA'S GEO-FENCING SYSTEM START ---
+    let userMarker = null;
+    let isInsideHazardZone = false;
+    let currentUserLat = null;
+    let currentUserLng = null;
+
+    // Wait for DOM to load before drawing map
+    document.addEventListener('DOMContentLoaded', () => {
+      const map = L.map('travelerMap').setView([25.6848, 94.1112], 12);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        className: 'map-tiles'
+      }).addTo(map);
+
+      // Define Landslide Hazard Zone (Geofence: 2km radius)
+      const hazardZone = L.circle([25.6848, 94.1112], {
+        color: '#ef4444',
+        fillColor: '#ef4444',
+        fillOpacity: 0.2,
+        radius: 2000
+      }).addTo(map);
+
+      // Watch position continuously to trigger dynamic alerts
+      if ('geolocation' in navigator) {
+        navigator.geolocation.watchPosition((pos) => {
+          currentUserLat = pos.coords.latitude;
+          currentUserLng = pos.coords.longitude;
+          const userLatLng = L.latLng(currentUserLat, currentUserLng);
+
+          if (!userMarker) {
+            userMarker = L.circleMarker(userLatLng, { radius: 6, fillColor: '#38bdf8', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
+            map.setView(userLatLng, 13);
+          } else {
+            userMarker.setLatLng(userLatLng);
+          }
+
+          // Proximity Calculation: Is user inside the Geofence?
+          const distanceToHazard = userLatLng.distanceTo(hazardZone.getLatLng());
+          if (distanceToHazard <= hazardZone.getRadius()) {
+            isInsideHazardZone = true;
+            dangerAlert.style.display = 'block'; 
+          } else {
+            isInsideHazardZone = false;
+            dangerAlert.style.display = 'none';
+          }
+        }, (err) => console.log(err), { enableHighAccuracy: true });
+      }
+    });
+    // --- DEBLINA'S GEO-FENCING SYSTEM END ---
+
+
+    // --- SHORODIP'S OFFLINE SYNC SYSTEM ---
+    async function dispatchAlert(packet) {
+      try {
+        const response = await fetch(SERVER_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(packet)
+        });
+        if (!response.ok) throw new Error('Server returned an error');
+        statusMsg.innerText = '✅ SOS Delivered to Server';
+        statusDot.style.background = '#22c55e';
+      } catch (err) {
+        const queue = JSON.parse(localStorage.getItem('offlineSOS') || '[]');
+        queue.push(packet);
+        localStorage.setItem('offlineSOS', JSON.stringify(queue));
+        statusMsg.innerText = '⚠️ Offline: Alert Saved Locally';
+        statusDot.style.background = '#f97316';
+      }
+    }
+
+    async function syncOfflineAlerts() {
+      const queue = JSON.parse(localStorage.getItem('offlineSOS') || '[]');
+      if (queue.length === 0) return;
+      statusMsg.innerText = `🔄 Syncing ${queue.length} offline alert(s)...`;
+      statusDot.style.background = '#eab308';
+      const remaining = [];
+      for (const packet of queue) {
+        try {
+          await fetch(SERVER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(packet) });
+        } catch (err) { remaining.push(packet); }
+      }
+      localStorage.setItem('offlineSOS', JSON.stringify(remaining));
+      if (remaining.length === 0) {
+        statusMsg.innerText = '✅ All Offline Alerts Synced!';
+        statusDot.style.background = '#22c55e';
+      }
+    }
+    window.addEventListener('online', syncOfflineAlerts);
+
+    // --- SOS DISPATCH BUTTON ---
+    sosBtn.addEventListener('click', () => {
+      const idVal = travelerIdInput.value.trim();
+      if (!idVal) {
+        alert('Please enter a Vehicle or Traveler ID first.');
+        return;
+      }
+
+      statusMsg.innerText = 'Broadcasting...';
+      statusDot.style.background = '#eab308';
+
+      const lat = currentUserLat || 25.6848; 
+      const lng = currentUserLng || 94.1112;
+
+      const distressPacket = {
+        travelerId: idVal,
+        timestamp: new Date().toISOString(),
+        location: {
+          latitude: lat,
+          longitude: lng
+        },
+        emergencyType: 'LANDSLIDE_BLOCKED',
+        status: 'SOS_ACTIVE',
+        geoFenceMetadata: {
+          insideHazardZone: isInsideHazardZone,
+          zoneSeverity: isInsideHazardZone ? 'HIGH' : 'SAFE'
+        }
+      };
+
+      output.style.display = 'block';
+      dispatchAlert(distressPacket);
+    });
+  </script>
+</body>
+</html>
