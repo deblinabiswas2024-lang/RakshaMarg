@@ -37,9 +37,11 @@ app.post('/api/sos', (req, res) => {
     return res.status(400).json({ error: 'Incomplete SOS payload' });
   }
 
+  // Remove existing alert for same traveler if re-broadcasting
+  distressAlerts = distressAlerts.filter(a => a.travelerId !== packet.travelerId);
   distressAlerts.unshift(packet);
 
-  // Authority Dispatch Log (SIH Requirement 6 & 9)
+  // Authority Dispatch Log
   console.log(`[DISASTER DISPATCH] 🚨 SOS received from ${packet.travelerId}`);
   console.log(` -> Coordinates: [${packet.location.latitude}, ${packet.location.longitude}]`);
   console.log(` -> Risk Severity: ${packet.geoFenceMetadata?.zoneSeverity || 'UNKNOWN'}`);
@@ -53,6 +55,17 @@ app.post('/api/sos', (req, res) => {
 // 3. Endpoint for Authority Monitoring Dashboard
 app.get('/api/sos', (req, res) => {
   res.json(distressAlerts);
+});
+
+// 4. Closed-Loop Authority Action: Deploy NDRF Rescue Unit
+app.post('/api/sos/dispatch', (req, res) => {
+  const { travelerId, status } = req.body;
+  const alert = distressAlerts.find(a => a.travelerId === travelerId);
+  if (alert) {
+    alert.status = status || 'RESCUE_DISPATCHED';
+    console.log(`[RESCUE DISPATCHED] ⚡ NDRF Unit routed to traveler ${travelerId}`);
+  }
+  res.json({ success: true, travelerId, status: alert ? alert.status : 'NOT_FOUND' });
 });
 
 app.listen(PORT, () => {
